@@ -76,29 +76,25 @@ def measure_train_test_error(model, loader_train, loader_test):
 # (D2) measure sets of kP pos or kP neg for each clause, for overlap stats
 ##############################
 
-"""
-Return for each clause, the indices of rows with all positive W_1 values for each corresponding variable
-and all negative W_1 values.
 
-Return:
-pos_sets = [
-    [i st clause 1 has w1=++...+, w2=+],
-    [i st clause 2 has w1=++...+, w2=+],
-    ...
-]
-neg_sets = [
-    [i st clause 1 has w1=++...+, w2=-],
-    [i st clause 2 has w1=++...+, w2=-],
-    ...
-]
-"""
 def measure_homogenous_sets(
     model: nn.Module,
     clauses: list[list[tuple[int, bool]]],
     k: int|None=None,
 ) -> tuple[list[set[int]], list[set[int]]]:
     """
-    Measure the sets of neurons that are homogenous for each clause (eg. 4p, 4n).
+    Return the sets of neurons that are homogenous for each clause, ie.
+
+    pos_sets = [
+        [i st clause 1 has w1[i, :]=++...+, w2[i]=+],
+        [i st clause 2 has w1[i, :]=++...+, w2[i]=+],
+        ...
+    ]
+    neg_sets = [
+        [i st clause 1 has w1[i, :]=++...+, w2[i]=-],
+        [i st clause 2 has w1[i, :]=++...+, w2[i]=-],
+        ...
+    ]
     """
     fc1_w = model.fc1.weight.detach().cpu().numpy()    # shape => [hidden_dim,32]
     fc2_w = model.fc2.weight.detach().cpu().numpy()[0] # shape => [hidden_dim,]
