@@ -24,9 +24,10 @@ def run_single_model(
     run_i: int,
     aggregator_steps: list[int],
     plot_steps: list[int],
-    j_size: int,
+    hidden_dim: int,
     num_features_per_clause: int,
     cset: list[list[tuple[int, bool]]],
+    input_dim: int,
     train_loader: DataLoader,
     test_loader: DataLoader,
     run_name: str,
@@ -55,7 +56,7 @@ def run_single_model(
         List of indices of the aggregator labels to be used.
     plot_steps : list[int]
         List of indices of the steps to be plotted.
-    j_size : int
+    hidden_dim : int
         Size of the hidden layer in the model.
     num_features_per_clause : int
         Number of features per clause in the formula.
@@ -81,6 +82,8 @@ def run_single_model(
         such as clause pattern counts, errors, and overlap metrics.
     """
 
+    print(f"{run_name}: using new random {num_features_per_clause}-AND formula => {cset}")
+
     local_seed = 57 + seed_offset + 1000*run_i
     random.seed(local_seed)
     np.random.seed(local_seed)
@@ -89,7 +92,7 @@ def run_single_model(
     B = len(list(train_loader))
     chunk_size = max(1, B//5)
 
-    model = ComplexModel(32, j_size)
+    model = ComplexModel(input_dim, hidden_dim)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
@@ -115,8 +118,8 @@ def run_single_model(
 
         step_label = str(step) + "/5"
 
-        print(f"{run_name}: epoch={step_label}, trainErr={tr_e:.4f}, testErr={ts_e:.4f}, "
-              f"kP+={over_['total_kp_pos']}, kP-={over_['total_kp_neg']}")
+        step_metrics = experiment.steps[-1]
+        print(f"{run_name}: {step_metrics}")
 
     def do_train_chunk(n_):
         for _ in range(n_):

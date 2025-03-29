@@ -223,6 +223,7 @@ def generate_range_dataset(
 
 def generate_dataset(
     cset,
+    input_dim,
     train_size,
     test_size,
     min_true_vars,
@@ -236,6 +237,8 @@ def generate_dataset(
     ----------
     cset : list
         List of clauses, where each clause is a list of (index, negated) pairs.
+    input_dim : int
+        The number of input features (i.e., number of variables x_1, ..., x_n).
     train_size : int
         Number of training samples to generate.
     test_size : int
@@ -254,9 +257,10 @@ def generate_dataset(
     test_loader : torch.utils.data.DataLoader
         DataLoader for test data.
     """
-    f_func = create_hidden_function_from_clauses(cset, 32)
-    X_train, y_train = generate_range_dataset(f_func, 32, train_size, cset, min_true_vars, max_true_vars)
-    X_test, y_test = generate_range_dataset(f_func, 32, test_size, cset, min_true_vars, max_true_vars)
+    assert len(cset) != 0, "cset is empty"
+    f_func = create_hidden_function_from_clauses(cset, input_dim)
+    X_train, y_train = generate_range_dataset(f_func, input_dim, train_size, cset, min_true_vars, max_true_vars)
+    X_test, y_test = generate_range_dataset(f_func, input_dim, test_size, cset, min_true_vars, max_true_vars)
 
     perm = torch.randperm(X_train.shape[0])
     X_train = X_train[perm]
@@ -265,7 +269,7 @@ def generate_dataset(
     X_test = X_test[perm_t]
     y_test = y_test[perm_t]
 
-    I_ = torch.eye(32)
+    I_ = torch.eye(input_dim)
     X_train_t = torch.mm(X_train, I_.t())
     X_test_t = torch.mm(X_test, I_.t())
     train_data = TensorDataset(X_train_t, y_train)
