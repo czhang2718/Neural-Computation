@@ -59,6 +59,13 @@ def create_mixed_clause_pool_random_disjoint(
 
     return clauses
 
+# def create_mixed_clause_pool_random_disjoint(
+#     global_input_dim: int = 16,
+#     pool_size: int = 256,
+#     features_per_and: int = 2,
+#     seed: int=0,
+# ):
+
 
 def create_hidden_function_from_clauses(clauses, input_dim):
     """
@@ -95,7 +102,8 @@ def generate_range_dataset(
     clauses,
     min_true_vars,
     max_true_vars,
-    reverse_negated=True
+    reverse_negated=True,
+    pos_neg_ratio: float=.5,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Generate a dataset of inputs and outputs based on logical clauses.
@@ -132,7 +140,7 @@ def generate_range_dataset(
     y = torch.zeros(num_samples)
 
     for i in range(num_samples):
-        label = random.choice([0, 1])
+        label = int(i > num_samples * pos_neg_ratio)
         n = random.randint(min_true_vars, max_true_vars)
 
         if label == 1:
@@ -221,7 +229,7 @@ def generate_range_dataset(
 
     return X, y
 
-def generate_dataset(
+def create_dataset(
     cset,
     input_dim,
     train_size,
@@ -229,6 +237,7 @@ def generate_dataset(
     min_true_vars,
     max_true_vars,
     batch_size: int=64,
+    pos_neg_ratio: float=.5,
 ) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """
     Generate a dataset of inputs and outputs based on logical clauses.
@@ -259,9 +268,24 @@ def generate_dataset(
     """
     assert len(cset) != 0, "cset is empty"
     f_func = create_hidden_function_from_clauses(cset, input_dim)
-    X_train, y_train = generate_range_dataset(f_func, input_dim, train_size, cset, min_true_vars, max_true_vars)
-    X_test, y_test = generate_range_dataset(f_func, input_dim, test_size, cset, min_true_vars, max_true_vars)
-
+    X_train, y_train = generate_range_dataset(
+        f_func=f_func,
+        input_dim=input_dim,
+        num_samples=train_size,
+        clauses=cset,
+        min_true_vars=min_true_vars,
+        max_true_vars=max_true_vars,
+        pos_neg_ratio=pos_neg_ratio
+    )
+    X_test, y_test = generate_range_dataset(
+        f_func=f_func,
+        input_dim=input_dim,
+        num_samples=test_size,
+        clauses=cset,
+        min_true_vars=min_true_vars,
+        max_true_vars=max_true_vars,
+        pos_neg_ratio=.5,
+    )
     perm = torch.randperm(X_train.shape[0])
     X_train = X_train[perm]
     y_train = y_train[perm]
@@ -274,7 +298,95 @@ def generate_dataset(
     X_test_t = torch.mm(X_test, I_.t())
     train_data = TensorDataset(X_train_t, y_train)
     test_data = TensorDataset(X_test_t, y_test)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
-    return train_loader, test_loader
+    return train_data, test_data
+
+def create_dataloader(
+        data,
+        batch_size: int=64,
+) -> torch.utils.data.DataLoader:
+    """
+    Create DataLoader for training and testing data.
+
+    Parameters
+    ----------
+    train_data : torch.utils.data.TensorDataset
+        Training dataset.
+    test_data : torch.utils.data.TensorDataset
+        Test dataset.
+    batch_size : int
+        Batch size for data loaders.
+
+    Returns
+    -------
+    train_loader : torch.utils.data.DataLoader
+        DataLoader for training data.
+    test_loader : torch.utils.data.DataLoader
+        DataLoader for test data.
+    """
+    loader = DataLoader(data, batch_size=batch_size, shuffle=True, drop_last=True)
+    return loader
+
+def create_dataloader_sort_y(
+    data,
+    batch_size: int=64,
+    increasing: bool=True,
+) -> torch.utils.data.DataLoader:
+    """
+    Create a DataLoader for training data sorted by y.
+
+    Parameters
+    ----------
+    data : torch.utils.data.TensorDataset
+        Dataset to sort.
+    batch_size : int
+        Batch size for data loaders.
+
+    Returns
+    -------
+    dataloader : torch.utils.data.DataLoader    
+    """
+    X, y = data.tensors
+    if increasing:
+        sorted_indices = y.argsort()  # y=0 before y=1
+    else:
+        sorted_indices = y.argsort(descending=True)  # y=1 before y=0
+
+    X_sorted = X[sorted_indices]
+    y_sorted = y[sorted_indices]
+
+    dataset = TensorDataset(X_sorted, y_sorted)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    return dataloader
+        
+def create_dataloader_sort_sumx(
+    data,
+    batch_size: int=64,
+    increasing: bool=True,
+) -> torch.utils.data.DataLoader:
+    """
+    Create a DataLoader for training data sorted by y.
+
+    Parameters
+    ----------
+    data : torch.utils.data.TensorDataset
+        Dataset to sort.
+    batch_size : int
+        Batch size for data loaders.
+
+    Returns
+    -------
+    dataloader : torch.utils.data.DataLoader    
+    """
+    X, y = data.tensors
+    if increasing:
+        sorted_indices = X.sum(dim=1).argsort()
+    else:
+        sorted_indices = X.sum(dim=1).argsort(descending=True)
+
+    X_sorted = X[sorted_indices]
+    y_sorted = y[sorted_indices]
+
+    dataset = TensorDataset(X_sorted, y_sorted)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    return dataloader

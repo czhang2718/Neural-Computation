@@ -297,8 +297,8 @@ def plot_6final_snapshots_2x3(
             b1_w = experiment.steps[idx].model.fc1.bias.detach().cpu().numpy()
             clauses = experiment.cset
 
-            W_cols, xlabels= reorder_cols_by_clause(fc1_w, clauses)
-            W_rows, w2_rows, _= reorder_rows_by_l2pos(W_cols, fc2_w)
+            W_cols, xlabels = reorder_cols_by_clause(fc1_w, clauses)
+            W_rows, w2_rows, _ = reorder_rows_by_l2pos(W_cols, fc2_w)
             b1_rows = b1_w[np.argsort(-w2_rows)]  # Reorder b1_w using same ordering as rows
             pos_count= sum(w2_rows>0)
 
@@ -326,7 +326,7 @@ def plot_6final_snapshots_2x3(
             for i in range(b1_resh.shape[0]):
                 text = ax_b1.text(0, i, f'{b1_resh[i,0]:.1f}',
                                ha="center", va="center", color="black", fontsize=6)
-            ax_b1.set_title("Bias1", fontsize=10, fontweight="bold")
+            ax_b1.set_title("b1", fontsize=10, fontweight="bold")
             ax_b1.set_yticks([])
             ax_b1.set_xticks([])
             ax_b1.axhline(y= pos_count-0.5, color='k', linestyle='--')

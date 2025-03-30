@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from data import generate_dataset
 from stats import (
     measure_aggregator_usage,
     measure_train_test_error,
@@ -17,11 +16,11 @@ from stats import (
 )
 from dataclasses import dataclass
 from typing import Dict, List
-from utils import ExperimentRun, ComplexModel, StepMetrics
+from utils import ExperimentRun, ComplexModel, StepMetrics, infinite_iter
 
 
 def run_single_model(
-    run_i: int,
+    run_name: str,
     aggregator_steps: list[int],
     plot_steps: list[int],
     hidden_dim: int,
@@ -30,11 +29,11 @@ def run_single_model(
     input_dim: int,
     train_loader: DataLoader,
     test_loader: DataLoader,
-    run_name: str,
     base_dir: str=".",
     l2_reg_factor: float=0.0,
     l1_reg_factor: float=1e-4,
     seed_offset: int=0,
+    run_i=0
 ):
     """
     Trains and evaluates a model using a randomly chosen k-clause logical formula.
@@ -48,10 +47,12 @@ def run_single_model(
     specific clause-pattern statistics at partial training steps and plots 
     the trends over time.
 
+    A run consists of aggregator_steps[-1] steps. In one step, the model forward passes and backpropogates on 
+
     Parameters
     ----------
-    run_i : int
-        Index of the current run (used for seeding and naming).
+    run_name : str
+        Name of the run.
     aggregator_steps : list[int]
         List of indices of the aggregator labels to be used.
     plot_steps : list[int]
@@ -64,8 +65,6 @@ def run_single_model(
         DataLoader for training data.
     test_loader : DataLoader
         DataLoader for test data.
-    run_name : str
-        Name of the run.
     base_dir : str
         Base directory for storing results. 
     l2_reg_factor : float
@@ -91,6 +90,7 @@ def run_single_model(
 
     B = len(list(train_loader))
     chunk_size = max(1, B//5)
+    train_loader_iter = infinite_iter(train_loader)
 
     model = ComplexModel(input_dim, hidden_dim)
     criterion = nn.BCEWithLogitsLoss()
@@ -123,7 +123,7 @@ def run_single_model(
 
     def do_train_chunk(n_):
         for _ in range(n_):
-            bx, by = next(iter(train_loader))
+            bx, by = next(train_loader_iter)
             optimizer.zero_grad()
             out = model(bx).squeeze()
             loss = criterion(out, by)
@@ -182,18 +182,18 @@ def run_single_model(
     ax2.tick_params(axis="y", labelcolor="red")
     ax2.legend(loc='upper right')
 
-    plt.title(f"Run #{run_i+1} => Distinct Random {num_features_per_clause}-AND formula", fontsize=14, fontweight="bold")
+    plt.title(f"Run {run_name} => {num_features_per_clause}-AND formula", fontsize=14, fontweight="bold")
     plt.tight_layout()
 
     outdir_pdf = os.path.join(base_dir,"pdfs")
     os.makedirs(outdir_pdf, exist_ok=True)
-    outpdf = os.path.join(outdir_pdf, f"run_{run_i+1}_aggregator_lineplot.pdf")
+    outpdf = os.path.join(outdir_pdf, f"run_{run_name}_aggregator_lineplot.pdf")
     plt.savefig(outpdf, dpi=120)
     plt.show()
     plt.close(fig)
 
     plot_6final_snapshots_2x3(
-        run_name=f"Random{num_features_per_clause} Run={run_i+1}",
+        run_name=f"{run_name},k={num_features_per_clause}",
         experiment=experiment,
         out_dir=outdir_pdf,
         final_keys=plot_labels

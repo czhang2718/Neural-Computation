@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Iterable
 import torch.nn as nn
 import numpy as np
 
@@ -76,3 +76,8 @@ class ExperimentRun:
     def get_step_values(self):
         """Get the step values"""
         return np.array([step.step for step in self.steps])
+
+def infinite_iter(iterable: Iterable):
+    while True:
+        for x in iterable:
+            yield x
