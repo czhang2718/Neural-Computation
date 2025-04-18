@@ -15,13 +15,13 @@ from stats import (
     plot_6final_snapshots_2x3
 )
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from utils import ExperimentRun, ComplexModel, StepMetrics, infinite_iter
 
 
 def run_single_model(
     run_name: str,
-    aggregator_steps: list[int],
+    max_aggregator_steps: list[int],
     plot_steps: list[int],
     hidden_dim: int,
     num_features_per_clause: int,
@@ -33,8 +33,12 @@ def run_single_model(
     l2_reg_factor: float=0.0,
     l1_reg_factor: float=1e-4,
     seed_offset: int=0,
+    verbose: bool=False,
+    visualize: bool=False,
+    window_size: int=4,
+    loss_diff_th: float=1e-4,
     run_i=0
-):
+) -> Tuple[ExperimentRun, nn.Module]:
     """
     Trains and evaluates a model using a randomly chosen k-clause logical formula.
 
@@ -47,14 +51,14 @@ def run_single_model(
     specific clause-pattern statistics at partial training steps and plots 
     the trends over time.
 
-    A run consists of aggregator_steps[-1] steps. In one step, the model forward passes and backpropogates on 
+    A run consists of max_aggregator_steps[-1] steps unless early stopping occurs.
 
     Parameters
     ----------
     run_name : str
         Name of the run.
-    aggregator_steps : list[int]
-        List of indices of the aggregator labels to be used.
+    max_aggregator_steps : list[int]
+        List of maximum indices of the aggregator labels to be used.
     plot_steps : list[int]
         List of indices of the steps to be plotted.
     hidden_dim : int
@@ -100,7 +104,7 @@ def run_single_model(
     prior_neg_sets = None
 
     # Initialize the experiment
-    experiment = ExperimentRun(len(aggregator_steps), num_features_per_clause, cset)
+    experiment = ExperimentRun(len(max_aggregator_steps), num_features_per_clause, cset)
 
     def measure_store(step, step_index):
         nonlocal prior_pos_sets, prior_neg_sets
@@ -119,7 +123,12 @@ def run_single_model(
         step_label = str(step) + "/5"
 
         step_metrics = experiment.steps[-1]
-        print(f"{run_name}: {step_metrics}")
+        if verbose:
+            print(f"{run_name}: {step_metrics}")
+
+    measure_store(0, 0)
+
+    losses = []  # Keep track of last 10 losses
 
     def do_train_chunk(n_):
         for _ in range(n_):
@@ -137,21 +146,44 @@ def run_single_model(
                 for param in model.parameters():
                     sum_l1 += torch.sum(torch.abs(param))
                 loss += (l1_reg_factor * sum_l1)
+            
             loss.backward()
             optimizer.step()
+            
+            # Add current loss to history
+            losses.append(loss.item())
+            if len(losses) > window_size:
+                losses.pop(0)  # Remove oldest loss
+                
+            # Check if loss has stabilized by looking at variation across window
+            if len(losses) >= window_size:
+                max_loss = max(losses)
+                min_loss = min(losses)
+                loss_range = max_loss - min_loss
+                if loss_range < loss_diff_th:
+                    print(f"Early stopping: loss variation {loss_range:.6f} below threshold {loss_diff_th}")
+                    return loss_range  # Signal to stop training
+                
+        return None  # Continue training
 
-    measure_store(0, 0)
+    # Track actual steps reached before early stopping
+    actual_steps = [0]  # Start with 0
+    
     # partial steps in aggregator labels
-    for step_idx_, step in enumerate(aggregator_steps):
+    for step_idx_, step in enumerate(max_aggregator_steps):
         step_idx = step_idx_ + 1
-        num_chunks = step - aggregator_steps[step_idx_-1] if step_idx_ > 0 else step
-        do_train_chunk(num_chunks * chunk_size)
+        num_chunks = step - max_aggregator_steps[step_idx_-1] if step_idx_ > 0 else step
+        loss_diff = do_train_chunk(num_chunks * chunk_size)
+        actual_steps.append(step)  # Add the last step where we stopped
         measure_store(step, step_idx)
+        if loss_diff is not None:
+            print(f"Early stopping: loss variation = {loss_diff:.6f} at step {step}")
+            break
 
     # aggregator lines
-    xvals = experiment.get_step_values()
-    step_labels = [str(step) + "/5" for step in aggregator_steps]
-    plot_labels = [str(step) + "/5" for step in plot_steps]
+    xvals = experiment.get_step_values()[:len(actual_steps)]  # Only use steps we actually reached
+    step_labels = [str(step) + "/5" for step in actual_steps]
+    plot_labels = [str(step) + "/5" for step in plot_steps if step <= actual_steps[-1]]  # Only plot steps we reached
 
     # Plot pattern counts
     fig, ax1 = plt.subplots(figsize=(10,6))
@@ -161,22 +193,22 @@ def run_single_model(
     for i in range(num_features_per_clause + 1):
         pattern_pos = f"{i}P{num_features_per_clause-i}N_pos"
         pattern_neg = f"{i}P{num_features_per_clause-i}N_neg"
-        ax1.plot(xvals, experiment.get_pattern_history(pattern_pos), "-", 
+        ax1.plot(xvals, experiment.get_pattern_history(pattern_pos)[:len(actual_steps)], "-", 
                  color=colors[0], marker=markers[i%len(markers)],
                  linewidth=2, label=f"{pattern_pos}")
-        ax1.plot(xvals, experiment.get_pattern_history(pattern_neg), "-",
+        ax1.plot(xvals, experiment.get_pattern_history(pattern_neg)[:len(actual_steps)], "-",
                  color=colors[1], marker=markers[i%len(markers)],
                  linewidth=2, label=f"{pattern_neg}")
 
-    ax1.set_xlabel(f"Partial Steps {aggregator_steps}", fontsize=12, fontweight="bold")
+    ax1.set_xlabel(f"Partial Steps {actual_steps}", fontsize=12, fontweight="bold")
     ax1.set_ylabel("Pattern Count/clause", fontsize=12, fontweight="bold")
     ax1.grid(True)
     ax1.legend(loc='center left', bbox_to_anchor=(1.3,0.5), fontsize=10)
-    ax1.set_xticks(aggregator_steps)
+    ax1.set_xticks(actual_steps)
     ax1.set_xticklabels(step_labels, rotation=45, fontsize=10)
 
     ax2 = ax1.twinx()
-    ax2.plot(xvals, experiment.get_error_history("train"), "-o", 
+    ax2.plot(xvals, experiment.get_error_history("train")[:len(actual_steps)], "-o", 
              color="red", linewidth=2, markersize=6, label="Train BCE")
     ax2.set_ylabel("Train BCE Error", color="red", fontsize=12, fontweight="bold")
     ax2.tick_params(axis="y", labelcolor="red")
@@ -189,14 +221,16 @@ def run_single_model(
     os.makedirs(outdir_pdf, exist_ok=True)
     outpdf = os.path.join(outdir_pdf, f"run_{run_name}_aggregator_lineplot.pdf")
     plt.savefig(outpdf, dpi=120)
-    plt.show()
+    if visualize:
+        plt.show()
     plt.close(fig)
 
-    plot_6final_snapshots_2x3(
-        run_name=f"{run_name},k={num_features_per_clause}",
-        experiment=experiment,
-        out_dir=outdir_pdf,
-        final_keys=plot_labels
-    )
+    if visualize:
+        plot_6final_snapshots_2x3(
+            run_name=f"{run_name},k={num_features_per_clause}",
+            experiment=experiment,
+            out_dir=outdir_pdf,
+            final_keys=plot_labels
+        )
 
-    return experiment
+    return experiment, model

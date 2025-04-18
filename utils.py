@@ -36,7 +36,7 @@ class StepMetrics:
             **self.pattern_counts,
             **self.overlap_stats
         }
-        return f"epoch={self.step_label}, " + ", ".join(f"{k}: {v:.2f}" for k, v in metrics.items())
+        return f"epoch={self.step_label}, " + ", ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
 
 class ExperimentRun:
     def __init__(self, num_steps: int, num_features_per_clause: int, cset: list[list[tuple[int, bool]]]):
