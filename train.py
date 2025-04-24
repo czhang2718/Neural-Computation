@@ -92,13 +92,14 @@ def run_single_model(
     np.random.seed(local_seed)
     torch.manual_seed(local_seed)
 
-    B = len(list(train_loader))
-    chunk_size = max(1, B//5)
+    num_batches = len(list(train_loader))
+    print(f"num_batches: {num_batches}")
+    chunk_size = max(1, num_batches//5)
     train_loader_iter = infinite_iter(train_loader)
 
     model = ComplexModel(input_dim, hidden_dim)
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     prior_pos_sets = None
     prior_neg_sets = None
@@ -160,7 +161,7 @@ def run_single_model(
                 max_loss = max(losses)
                 min_loss = min(losses)
                 loss_range = max_loss - min_loss
-                if loss_range < loss_diff_th:
+                if loss_range < loss_diff_th: 
                     print(f"Early stopping: loss variation {loss_range:.6f} below threshold {loss_diff_th}")
                     return loss_range  # Signal to stop training
                 
