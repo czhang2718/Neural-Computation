@@ -34,9 +34,11 @@ class StepMetrics:
             "trainErr": self.train_error,
             "testErr": self.test_error,
             **self.pattern_counts,
-            **self.overlap_stats
+            **self.overlap_stats,
+            "numNonzeroW1": (self.model.fc1.weight.detach().cpu().numpy() > 1e-5).sum(),
+            "numNonzeroW2": (self.model.fc2.weight.detach().cpu().numpy() > 1e-5).sum()
         }
-        return f"epoch={self.step_label}, " + ", ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
+        return f"epoch={self.step_label}, " + ", ".join(f"{k}: {v:.6f}" for k, v in metrics.items())
 
 class ExperimentRun:
     def __init__(self, num_steps: int, num_features_per_clause: int, cset: list[list[tuple[int, bool]]]):

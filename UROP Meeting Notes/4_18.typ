@@ -74,7 +74,7 @@ Basic initial expariemnts
 - do experiments well
 
 
-$ x -> E x -> (CD) E x $
+$ x -> E x -> (C D) E x $
 
 $W_1 = C D$, do L1 on W1
 
@@ -86,11 +86,11 @@ Then:
 
 
 Next steps:
-- How does ratio of positive / neg examples in training impact # positives in $W_2$
+- How does ratio of positive / neg examples in training impact \# positives in $W_2$
 4p, 4n, 3p1n, etc. 
 - understand current experiments better
-    - #neurons >= #clauses: monosemantic?
-    - #neurons < #clauses: poly? does loss go to 0?
-- if ^ done, embed inputs x-> Ex, L1 on W1 = C D, then look at resulting C (= W1 @ D^-1)
+    - \# neurons >= \# clauses: monosemantic?
+    - \#neurons < \#clauses: poly? does loss go to 0?
+- if ^ done, embed inputs x-> Ex, L1 on W1 = C D, then look at resulting C (= W1 \@ D^-1)
     - E = Hadamard matrix
     - E = random boolean matrix

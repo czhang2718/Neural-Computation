@@ -36,7 +36,7 @@ def run_single_model(
     verbose: bool=False,
     visualize: bool=False,
     window_size: int=4,
-    loss_diff_th: float=1e-4,
+    loss_diff_th: float=0,
     run_i=0
 ) -> Tuple[ExperimentRun, nn.Module]:
     """
@@ -132,6 +132,7 @@ def run_single_model(
     losses = []  # Keep track of last 10 losses
 
     def do_train_chunk(n_):
+        # print(f"Training {n_} batches")
         for _ in range(n_):
             bx, by = next(train_loader_iter)
             optimizer.zero_grad()
